@@ -1,0 +1,64 @@
+---
+title: "5. házi feladat (HF5)"
+output: html_document
+---
+
+Beadási határidő: november 29. éjfél
+
+Beküldés: a Microsoft Teams felületén keresztül
+
+Adj szöveges választ is, ahol a feladatkitűzés ezt kéri!
+
+---
+
+## 1. feladat (HF5/1)
+
+Ebben a feladatban egy szupermarket vásárlási adatait fogjuk elemezni nagy valós adathalmaz segítségével. (5 pont)
+
+**a)** Az adatok forrása a “The Instacart Online Grocery Shopping Dataset 2017”, a linken olvashatsz a projektről részletesebben. Itt tudod letölteni a szükséges adatokat, itt pedig az adatok tartalmáról találsz több információt.
+Az orders.csv, az order_products_prior.csv és a products.csv adatfájlokat olvasd be R-be. A beolvaséshoz az adatok méretére való tekintettel használd a data.table csomag fread függvényét!
+Illeszd össze (merge vagy left_join a dplyr csomagból) a termékazonsítókat és a nevüket, majd ezután szintén vond össze a vásárlások (orders) adatait a termékekkel (order_id alapján)!
+
+**b)** Célunk a termékek klaszterezése, ehhez a termékekre vonatkozóan különböző attribútumokat kell definiálnunk! Néhány lehetséges attribútum:
+
+- hányszor vásárolták az adott terméket
+- hány különböző vevő vásárolta
+- hány különböző vásárlásban tűnik fel a termék
+- a hét melyik napján vásárolták legtöbbet a terméket
+- a nap melyik órájában vásárolták legtöbbször a terméket
+- átlagosan hány nap telt el az előző vásárláshoz képest
+- stb.
+
+Egy-két attribútumot még találj ki pluszban!
+
+(Tipp: használd az órán is látott group_by majd summarise függvényket a dplyr csomagból!)
+
+**c)** Kezeld a hiányzó adatokat! Ha a product_id hiányzik, akkor azt a terméket töröljük ki! A többi hiányzó adatot pedig próbáljuk a rendelkezésre álló adatok alapján okosan kitalálni (imputation). Ehhez először skálázd az attribútumokat, majd használd a mice nevű csomagból a mice és complete függvényeket! Olvasd el, hogy milyen módszerrel próbálja meg kitalálni a mice a hiányzó adatokat!
+
+**d)** Határozd meg “könyökmódszerrel” a klaszterek számát, majd ezzel az értékkel futtass K-közép klaszterezést!
+
+**e)** Valamilyen értelmes dimenziók mentén ábrázold a klaszterezés eredményét! Készíts néhány ábrát és próbáld értelmezni, hogy a kijövő klaszterek milyen terméktípusoknak felelnek meg!
+
+---
+
+## 2. feladat (HF5/2)
+
+Ebben a feladatban egy bútorkereskedés számára kell az ügyféladatokból értelmes és hasznos klasztereket találnod, hogy az egyes klaszterekben lévő ügyfeleknek célzott hirdetésket tudjanak kiküldeni! (3 pont)
+
+**a)** Töltsd be az Adatok mappában található customer_survey.csv fájlt R-be. Használj két különböző, órán tanult klaszterező algoritmust, hogy megtaláld az értelmes klasztereket! (A klaszterező algoritmusokat nem kell neked megírnod, használd az R beépített függvényeit.) A cél jól használható klasztereket találni!
+
+**b)** Hasonlítsd össze a két klaszterező által kapott eredményket!
+
+**c)** Értelmezd az eredményeket! Fogalmazd meg, mik lennének azok a hirdetések, amiket az egyes klasztereknek célzottan kiküldenél?
+
+(Tipp: Érdemes a bináris (factor) attribútumokat numerikussá alakítani, tehát Male - Female helyett 1 -0 stb.)
+
+---
+
+## 3. feladat (HF5/3)
+
+Ebben a feadatban a Tableau adatviualizációs szoftvert kell használnod, R-rel összekapcsolva. (7 pont)
+
+A házi feladat a november 17-ei Tableau órán lesz kiadva!
+
+---

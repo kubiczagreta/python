@@ -1,0 +1,316 @@
+---
+title: "5. házi feladat (HF5)"
+output: html_document
+---
+
+Beadási határidő: november 29. éjfél
+
+Beküldés: a Microsoft Teams felületén keresztül
+
+Adj szöveges választ is, ahol a feladatkitűzés ezt kéri!
+
+---
+
+## 1. feladat (HF5/1)
+
+Ebben a feladatban egy szupermarket vásárlási adatait fogjuk elemezni nagy valós adathalmaz segítségével. (5 pont)
+
+**a)** Az adatok forrása a “The Instacart Online Grocery Shopping Dataset 2017”, a linken olvashatsz a projektről részletesebben. Itt tudod letölteni a szükséges adatokat, itt pedig az adatok tartalmáról találsz több információt.
+Az orders.csv, az order_products_prior.csv és a products.csv adatfájlokat olvasd be R-be. A beolvaséshoz az adatok méretére való tekintettel használd a data.table csomag fread függvényét!
+Illeszd össze (merge vagy left_join a dplyr csomagból) a termékazonsítókat és a nevüket, majd ezután szintén vond össze a vásárlások (orders) adatait a termékekkel (order_id alapján)!
+
+```{r}
+#A vásárlási adatok csv fájlait betettem a megszokott mappaszerkezet Adatok mappájába.
+```
+
+```{r}
+#install.packages("data.table")
+library(data.table)
+#install.packages("dplyr")
+library(dplyr)
+```
+
+```{r}
+orders <- fread("../Adatok/orders.csv")
+products <- fread("../Adatok/products.csv")
+order_products_prior <- fread("../Adatok/order_products__prior.csv")
+```
+
+```{r}
+products_data <- merge(merge(products, order_products_prior, by.x = "product_id", by.y = "product_id"), orders, by.x = "order_id", by.y = "order_id")
+```
+
+```{r}
+head(products_data)
+```
+
+**b)** Célunk a termékek klaszterezése, ehhez a termékekre vonatkozóan különböző attribútumokat kell definiálnunk! Néhány lehetséges attribútum:
+
+- hányszor vásárolták az adott terméket
+- hány különböző vevő vásárolta
+- hány különböző vásárlásban tűnik fel a termék
+- a hét melyik napján vásárolták legtöbbet a terméket
+- a nap melyik órájában vásárolták legtöbbször a terméket
+- átlagosan hány nap telt el az előző vásárláshoz képest
+- stb.
+
+Egy-két attribútumot még találj ki pluszban!
+
+(Tipp: használd az órán is látott group_by majd summarise függvényket a dplyr csomagból!)
+
+```{r}
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+```
+
+```{r}
+new_attrs <- products_data %>%
+  group_by(product_id) %>%
+  summarise(hanyszor_vasaroltak = n(),
+            kulonbozo_vevok = n_distinct(user_id),
+            kulonbozo_vasarlok = n_distinct(order_id),
+            melyik_nap = getmode(order_dow),
+            melyik_ora = getmode(order_hour_of_day),
+            atlagosan_eltelt_nap = mean(days_since_prior_order),
+            atlagosan_hanyadik = mean(add_to_cart_order),
+            hanyszor_ujravasarolt = sum(reordered))
+head(new_attrs)
+```
+
+```{r}
+#Ez a két oszlop megyeggyezik, ezért az egyiket törlöm.
+all.equal(new_attrs$hanyszor_vasaroltak, new_attrs$kulonbozo_vasarlok)
+```
+
+```{r}
+new_attrs$kulonbozo_vasarlok <- NULL
+```
+
+**c)** Kezeld a hiányzó adatokat! Ha a product_id hiányzik, akkor azt a terméket töröljük ki! A többi hiányzó adatot pedig próbáljuk a rendelkezésre álló adatok alapján okosan kitalálni (imputation). Ehhez először skálázd az attribútumokat, majd használd a mice nevű csomagból a mice és complete függvényeket! Olvasd el, hogy milyen módszerrel próbálja meg kitalálni a mice a hiányzó adatokat!
+
+```{r}
+new_attrs[!is.na(new_attrs$product_id),]
+```
+
+```{r}
+scale_attrs <- new_attrs %>%
+  mutate(hanyszor_vasaroltak = as.vector(scale(hanyszor_vasaroltak)),
+          kulonbozo_vevok = as.vector(scale(kulonbozo_vevok)),
+          melyik_nap = as.vector(scale(melyik_nap)),
+          melyik_ora = as.vector(scale(melyik_ora)),
+          atlagosan_eltelt_nap = as.vector(scale(atlagosan_eltelt_nap)),
+          atlagosan_hanyadik = as.vector(scale(atlagosan_hanyadik)),
+          hanyszor_ujravasarolt = as.vector(scale(hanyszor_ujravasarolt)))
+head(scale_attrs)
+```
+
+```{r}
+#install.packages("mice")
+library(mice)
+```
+
+```{r}
+products_clustering <- complete(mice(scale_attrs))
+```
+
+```{r}
+products_clustering$product_id <- NULL
+```
+
+**d)** Határozd meg “könyökmódszerrel” a klaszterek számát, majd ezzel az értékkel futtass K-közép klaszterezést!
+
+```{r}
+#install.packages("dplyr")
+library(dplyr)
+```
+
+```{r}
+elbow_method <- function(data, max_k=15){
+  require(ggplot2)
+  wss <- (nrow(data)-1)*sum(apply(data,2,var))
+  for (i in 1:max_k){
+    wss[i] <- sum(kmeans(data, centers=i)$withinss)
+  }
+  p <- data.frame(number_of_clusters=c(1:max_k), wss=wss) %>%
+    ggplot(aes(x=number_of_clusters, y=wss, group=1)) + geom_point() + 
+    geom_line() + theme_bw() + ylab("Within groups sum of squares")
+  return(print(p))
+}
+```
+
+```{r}
+elbow_method(products_clustering, max_k=30)
+```
+
+```{r}
+product_clusters <- kmeans(products_clustering, centers = 5, nstart=20)
+#product_clusters
+```
+
+**e)** Valamilyen értelmes dimenziók mentén ábrázold a klaszterezés eredményét! Készíts néhány ábrát és próbáld értelmezni, hogy a kijövő klaszterek milyen terméktípusoknak felelnek meg!
+
+```{r}
+products_clustering$cluster <- as.factor(product_clusters$cluster)
+```
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+#install.packages("gridExtra")
+library(gridExtra)
+```
+
+```{r}
+a1 <- ggplot(products_clustering, aes(x=atlagosan_eltelt_nap, y=hanyszor_vasaroltak, color=cluster)) + geom_point(size=1) + theme_bw()
+
+a2 <- ggplot(products_clustering, aes(x=melyik_ora, y=kulonbozo_vevok, color=cluster)) + geom_point(size=1) + theme_bw()
+```
+
+```{r}
+grid.arrange(a1, a2, ncol=2)
+```
+
+```{r}
+#A bal oldali ábrán az 5-ös lila klaszterbe tartoznak azok a termékek tartoznak, amelyek a legnépszerűbbek a vásárlók körében, ilyenből mindössze csak néhány van.
+
+#A jobb oldali ábrán azt láthatjuk, hogy az egyes klaszterekbe tartozó termékeket mennyire voltak népszerűek a nap egy bizonyos órájában a vevők között. A legnépszerűbbekből itt is kevés van és főként a nap középső szakaszában vásárolták őket.
+```
+
+---
+
+## 2. feladat (HF5/2)
+
+Ebben a feladatban egy bútorkereskedés számára kell az ügyféladatokból értelmes és hasznos klasztereket találnod, hogy az egyes klaszterekben lévő ügyfeleknek célzott hirdetésket tudjanak kiküldeni! (3 pont)
+
+**a)** Töltsd be az Adatok mappában található customer_survey.csv fájlt R-be. Használj két különböző, órán tanult klaszterező algoritmust, hogy megtaláld az értelmes klasztereket! (A klaszterező algoritmusokat nem kell neked megírnod, használd az R beépített függvényeit.) A cél jól használható klasztereket találni!
+
+```{r}
+customers <- read.csv("../Adatok/customer_survey.csv", sep=' ',header = TRUE)
+head(customers)
+```
+
+```{r}
+customers$gender[customers$gender == "Male"] <- 1
+customers$gender[customers$gender == "Female"] <- 0
+customers$ownHome[customers$ownHome == "ownYes"] <- 1
+customers$ownHome[customers$ownHome == "ownNo"] <- 0
+customers$subscribe[customers$subscribe == "subYes"] <- 1
+customers$subscribe[customers$subscribe == "subNo"] <- 0
+head(customers)
+```
+
+```{r}
+# install.packages("dplyr")
+library(dplyr)
+```
+
+```{r}
+customers_clustering <- customers %>%
+  mutate(age=scale(age), 
+         income=scale(income), 
+         kids=scale(kids))
+head(customers_clustering)
+```
+
+```{r}
+#Az első feladatba van beillesztve a függvény.
+elbow_method(customers_clustering, max_k=15)
+```
+
+```{r}
+customers_clusters <- kmeans(customers_clustering, centers = 5, nstart=20)
+customers_clusters
+```
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+#install.packages("gridExtra")
+library(gridExtra)
+```
+
+```{r}
+customers_clustering$cluster <- as.factor(customers_clusters$cluster)
+```
+
+```{r}
+a3 <- ggplot(customers_clustering, aes(x=age, y=income, color=cluster)) + geom_point(size=1) + theme_bw()
+a4 <- ggplot(customers_clustering, aes(x=age, y=kids, color=cluster)) + geom_point(size=1) + theme_bw()
+a5 <- ggplot(customers_clustering, aes(x=income, y=kids, color=cluster)) + geom_point(size=1) + theme_bw()
+```
+
+```{r}
+grid.arrange(a3,a4,a5, nrow=2, ncol=2)
+```
+
+```{r}
+distance_m <- dist(as.matrix(customers_clustering))
+hc <- hclust(distance_m)
+#plot(hc)
+```
+
+```{r}
+sub_grp <- cutree(hc, k = 5)
+table(sub_grp)
+```
+
+```{r}
+plot(hc, cex = 0.6)
+rect.hclust(hc, k = 5, border = 2:5)
+```
+
+```{r}
+#az ábrázoláshoz ezen a linken találtam segítséget: https://stackoverflow.com/questions/52876680/clustered-scatterplot-in-r
+
+ggData <- cbind(customers_clustering, sub_grp)
+ggData$sub_grp <- as.factor(ggData$sub_grp)
+```
+
+```{r}
+a6 <- ggplot(ggData, aes(x=age, y=income, color=sub_grp)) + geom_point(size=1) + theme_bw()
+a7 <- ggplot(ggData, aes(x=age, y=kids, color=sub_grp)) + geom_point(size=1) + theme_bw()
+a8 <- ggplot(ggData, aes(x=income, y=kids, color=sub_grp)) + geom_point(size=1) + theme_bw()
+```
+
+```{r}
+grid.arrange(a6,a7,a8, nrow=2, ncol=2)
+```
+
+**b)** Hasonlítsd össze a két klaszterező által kapott eredményket!
+
+```{r}
+grid.arrange(a3,a6,a4,a7,a5,a8,nrow=3, ncol=2)
+```
+
+```{r}
+#A két klaszterezés ederménye ugyanaz lett, a fentebb látható ábrák alapján.
+```
+
+**c)** Értelmezd az eredményeket! Fogalmazd meg, mik lennének azok a hirdetések, amiket az egyes klasztereknek célzottan kiküldenél?
+
+(Tipp: Érdemes a bináris (factor) attribútumokat numerikussá alakítani, tehát Male - Female helyett 1 -0 stb.)
+
+```{r}
+#A b) feladatrészben ábrázolt 6 ábra alapján a következő hirdetésötleteim lennének:
+#       - az age-income ábrák alapján: különböző árkategóriájú termékekről küldenék hirdetést az alapján, 
+#         hogy mennyit keres egy adott korosztály, azaz ha több a fizetése, akkor drágább bútorról küldenék 
+#         hiretést(pl a 3-as(baloldali) és az 5-ös(jobboldali) csoportoknak),
+#       - az age-kids ábrák alapján: azoknak a csoportbelieknek akiknek több gyerekük van több
+#         gyerekbútorról küldenék hiretést, amely a felnőttek korának megfelelő ízléssel (gonolok itt az
+#         5-ös(baloldali) és a 4-es(jobboldali) csoportokra),
+#       - az income-kids ábrák alapján: a bevétellel arányosan azonos drágaságú gyerekbútorok hirdetését
+#         küldeném ki az ügyfeleknek (itt a drága bútorok sokgyerekes ügyfelek esetén az 5-ös(baloldali)
+#         és a 4-es(jobboldali) csoportokra gondolok).
+```
+
+---
+
+## 3. feladat (HF5/3)
+
+Ebben a feadatban a Tableau adatviualizációs szoftvert kell használnod, R-rel összekapcsolva. (7 pont)
+
+A házi feladat a november 17-ei Tableau órán lesz kiadva!
+
+---
